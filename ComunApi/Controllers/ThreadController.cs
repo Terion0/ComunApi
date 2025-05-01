@@ -9,6 +9,7 @@ using ComunApi.Models.DTO.DTOThread;
 using Microsoft.EntityFrameworkCore;
 using System.Threading;
 using ComunApi.Models.Intermediares;
+using ComunApi.Models.DTO.DTOPages;
 
 namespace ComunApi.Controllers
 {
@@ -89,16 +90,20 @@ namespace ComunApi.Controllers
                     _logger.LogWarning("El usuario ya ha dado like a este hilo");
                     return BadRequest("Ya has dado like a este hilo");
                 }
-
-                ThreadLikes newLike = new()
+                else
                 {
-                    ThreadId = thread.Id,
-                    UserId = userId
-                };
-                _context.ThreadLikes.Add(newLike);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Like al hilo realizado");
-                return Ok("Like al hilo realizado correctamente");
+                    ThreadLikes newLike = new()
+                    {
+                        ThreadId = thread.Id,
+                        UserId = userId
+                    };
+                    thread.CountLikes += 1;
+                    _context.ThreadLikes.Add(newLike);
+                    _context.Threads.Update(thread);
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Like al hilo realizado");
+                    return Ok("Like al hilo realizado correctamente");
+                }
             }
             else
             {
@@ -108,126 +113,210 @@ namespace ComunApi.Controllers
         }
 
         [HttpGet("All")]
-        public async Task<IActionResult> GetThreads()
+        public async Task<IActionResult> GetThreads([FromQuery] int pageNumber = 1, [FromQuery] string name = null)
         {
-            var threads = await _context.Threads
-                .Select(thread => new ThreadListDTO
+            int pageSize = 10;
+
+            var threadsQuery = _context.Threads.AsQueryable();
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                threadsQuery = threadsQuery.Where(t => t.Title.Contains(name));
+            }
+
+            var total = await threadsQuery.CountAsync();
+
+            var threadsList = await threadsQuery
+                .OrderBy(t => t.Id)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(t => new ThreadListDTO
                 {
-                    Id = thread.Id,
-                    Title = thread.Title,
-                    Images = thread.Images.Select(i => i.ImageUrl).ToList(),
-                    Likes = _context.ThreadLikes.Count(rl => rl.ThreadId == thread.Id)
+                    Id = t.Id,
+                    Title = t.Title,
+                    Images = t.Images.Select(i => i.ImageUrl).ToList(),
+                    Likes = t.CountLikes
                 })
                 .ToListAsync();
 
-            _logger.LogInformation("Listado de hilos");
-            return Ok(threads);
+            if (!threadsList.Any())
+            {
+                _logger.LogInformation("No se encontraron hilos.");
+                return NotFound("No se encontraron hilos.");
+            }
+
+            PageDTO<ThreadListDTO> result = new()
+            {
+                Data = threadsList,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalRecords = total
+            };
+
+            _logger.LogInformation("Hilos recuperados exitosamente.");
+            return Ok(result);
         }
 
-        [HttpGet("AllByComunity/{idThread}")]
-        public async Task<IActionResult> GetThreadsByCommunity(int idThread)
+
+        [HttpGet("AllByComunity/{idCom}")]
+        public async Task<IActionResult> GetThreadsByCommunity(int idCom, [FromQuery] int pageNumber = 1, [FromQuery] string name = null)
         {
-            var threads = await _context.Threads
-                .Where(thread => thread.CommunityId == idThread)
-                .Select(thread => new ThreadListDTO
+            int pageSize = 10;
+
+            var threadsQuery = _context.Threads
+                .Where(t => t.CommunityId == idCom);
+
+            // Filtrar por nombre de hilo si se proporciona
+            if (!string.IsNullOrEmpty(name))
+            {
+                threadsQuery = threadsQuery.Where(t => t.Title.Contains(name));
+            }
+
+            var total = await threadsQuery.CountAsync();
+
+            var threadsCom = await threadsQuery
+                .OrderBy(t => t.Id)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(t => new ThreadListDTO
                 {
-                    Id = thread.Id,
-                    Title = thread.Title,
-                    Images = thread.Images.Select(i => i.ImageUrl).ToList(),
+                    Id = t.Id,
+                    Title = t.Title,
+                    Images = t.Images.Select(i => i.ImageUrl).ToList(),
+                    Likes = t.CountLikes
                 })
                 .ToListAsync();
+
+            var result = new PageDTO<ThreadListDTO>
+            {
+                Data = threadsCom,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalRecords = total
+            };
+
             _logger.LogInformation("Listado de hilos por comunidad");
-            return Ok(threads);
+            return Ok(result);
         }
 
-        [HttpGet("{idThread}")]
-        public async Task<IActionResult> GetThreadById(int idThread)
-        {  
-                var threadDto = await _context.Threads
-                    .Where(t => t.Id == idThread)
-                    .Select(t => new ThreadDetailDTO
-                    {
-                        Id = t.Id,
-                        Title = t.Title,
-                        Content = t.Content,
-                        Community = new CommunityListDTO
-                        {
-                            Id = t.Community.Id,
-                            ComName = t.Community.ComName,
-                            ComPicture = t.Community.ComPicture
-                        },
-                        CreatorId = t.CreatorId,
-                        Images = t.Images.Select(i => i.ImageUrl).ToList(),
-                        Likes = _context.ThreadLikes.Count(rl => rl.ThreadId == t.Id)
-                    })
-                    .FirstOrDefaultAsync();
 
-                if (threadDto != null)
-                {
-                    _logger.LogInformation("Thread añadido.");
-                    return Ok(threadDto);
-                }
-                else
-                {
-                    _logger.LogWarning("Hilo inexistente");
-                    return NotFound();
-                }
-        }
 
         [HttpGet("bycreator/{creatorId}")]
-        public async Task<IActionResult> GetThreadsByCreatorId(int creatorId)
-        { 
-                var threads = await _context.Threads
-                    .Where(t => t.CreatorId == creatorId)
-                    .Select(t => new ThreadListDTO
-                    {
-                        Id = t.Id,
-                        Title = t.Title,
-                        Images = t.Images.Select(i => i.ImageUrl).ToList(),
-                        Likes = _context.ThreadLikes.Count(rl => rl.ThreadId == t.Id)
+        public async Task<IActionResult> GetThreadsByCreatorId(int creatorId, [FromQuery] int pageNumber = 1)
+        {
+            int PageSize = 10;
 
-                    })
-                    .ToListAsync();
+            var threads = _context.Threads
+                .Where(t => t.CreatorId == creatorId);
 
-                if (threads.Any())
+            var total = await threads.CountAsync();
+
+            var threadsCreator = await threads
+                .OrderBy(t => t.Id)
+                .Skip((pageNumber - 1) * PageSize)
+                .Take(PageSize)
+                .Select(t => new ThreadListDTO
                 {
-                    _logger.LogInformation("Threads recuperados");
-                    return Ok(threads);
-                }
-                else
-                {
-                    _logger.LogInformation("Uusario sin threads");
-                    return NotFound("No se encontraron threads creados por este usuario.");
-                }  
+                    Id = t.Id,
+                    Title = t.Title,
+                    Images = t.Images.Select(i => i.ImageUrl).ToList(),
+                    Likes = t.CountLikes
+                })
+                .ToListAsync();
+
+            if (!threadsCreator.Any())
+            {
+                _logger.LogInformation("Usuario sin threads");
+                return NotFound("No se encontraron threads creados por este usuario.");
+            }
+
+            var result = new PageDTO<ThreadListDTO>
+            {
+                Data = threadsCreator,
+                PageNumber = pageNumber,
+                PageSize = PageSize,
+                TotalRecords = total
+            };
+
+            _logger.LogInformation("Threads recuperados por creador");
+            return Ok(result);
         }
 
         [HttpGet("byLike/{creatorId}")]
-        public async Task<IActionResult> GetThreadsByLikeId(int creatorId)
+        public async Task<IActionResult> GetThreadsByLikeId(int creatorId, [FromQuery] int pageNumber = 1)
         {
-          
-            var threadLikes = await _context.ThreadLikes
-         .Where(cs => cs.UserId == creatorId)
-         .Include(cs => cs.thread)  
-         .ThenInclude(t => t.Images)  
-         .Select(cs => new ThreadListDTO
-         {
-             Id = cs.thread.Id,  
-             Title = cs.thread.Title,  
-             Images = cs.thread.Images.Select(i => i.ImageUrl).ToList(),
-             Likes = _context.ThreadLikes.Count(rl => rl.ThreadId == cs.ThreadId)
-         })
-         .ToListAsync();
-            if (threadLikes.Any())
-            {
-                _logger.LogInformation("Saca los threads con likes");
-                return Ok(threadLikes);
-            }
-            else
+            const int PageSize = 10;
+
+            var threads = _context.ThreadLikes
+                .Where(cs => cs.UserId == creatorId)
+                .Include(cs => cs.thread)
+                .ThenInclude(t => t.Images);
+
+            var total = await threads.CountAsync();
+
+            var threadLikes = await threads
+                .OrderBy(cs => cs.thread.Id)
+                .Skip((pageNumber - 1) * PageSize)
+                .Take(PageSize)
+                .Select(cs => new ThreadListDTO
+                {
+                    Id = cs.thread.Id,
+                    Title = cs.thread.Title,
+                    Images = cs.thread.Images.Select(i => i.ImageUrl).ToList(),
+                    Likes = cs.thread.CountLikes
+                })
+                .ToListAsync();
+
+            if (!threadLikes.Any())
             {
                 _logger.LogInformation("Usuario sin likes");
                 return NotFound("No se encontraron likes a threads.");
             }
 
+            var result = new PageDTO<ThreadListDTO>
+            {
+                Data = threadLikes,
+                PageNumber = pageNumber,
+                PageSize = PageSize,
+                TotalRecords = total
+            };
+
+            _logger.LogInformation("Threads con likes del usuario");
+            return Ok(result);
+        }
+
+        [HttpGet("{idCom}")]
+        public async Task<IActionResult> GetThreadById(int idThread)
+        {
+            var threadDto = await _context.Threads
+                .Where(t => t.Id == idThread)
+                .Select(t => new ThreadDetailDTO
+                {
+                    Id = t.Id,
+                    Title = t.Title,
+                    Content = t.Content,
+                    Community = new CommunityListDTO
+                    {
+                        Id = t.Community.Id,
+                        ComName = t.Community.ComName,
+                        ComPicture = t.Community.ComPicture
+                    },
+                    CreatorId = t.CreatorId,
+                    Images = t.Images.Select(i => i.ImageUrl).ToList(),
+                    Likes = t.CountLikes
+                })
+                .FirstOrDefaultAsync();
+
+            if (threadDto != null)
+            {
+                _logger.LogInformation("Thread añadido.");
+                return Ok(threadDto);
+            }
+            else
+            {
+                _logger.LogWarning("Hilo inexistente");
+                return NotFound();
+            }
         }
 
         [HttpPut()]
@@ -277,7 +366,7 @@ namespace ComunApi.Controllers
             }
         }
 
-        [HttpDelete("community/{idCom}/Thread/{idThread}")]
+        [HttpDelete("community/{idCom}/Thread/{idCom}")]
         [Authorize]
         public async Task<IActionResult> DeleteThread(int idThread, int idCom)
         {
@@ -341,12 +430,15 @@ namespace ComunApi.Controllers
                     _logger.LogWarning("El usuario no ha dado like a este hilo");
                     return BadRequest("No has dado like a este hilo");
                 }
-
-                // Eliminar el like
-                _context.ThreadLikes.Remove(existingLike);
-                await _context.SaveChangesAsync();
-                _logger.LogInformation("Like al hilo eliminado");
-                return Ok("Like al hilo eliminado correctamente");
+                else
+                {
+                    thread.CountLikes -= 1;      
+                    _context.ThreadLikes.Remove(existingLike);
+                    _context.Threads.Update(thread);
+                    await _context.SaveChangesAsync();
+                    _logger.LogInformation("Like al hilo eliminado");
+                    return Ok("Like al hilo eliminado correctamente");
+                }
             }
             else
             {

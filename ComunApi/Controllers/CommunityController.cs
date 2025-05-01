@@ -8,6 +8,7 @@ using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using ComunApi.Models.DTO.DTOThread;
 using ComunApi.Models.Intermediares;
+using ComunApi.Models.DTO.DTOPages;
 
 namespace ComunApi.Controllers
 {
@@ -71,7 +72,9 @@ namespace ComunApi.Controllers
                     CommunityId = community.Id,
                     UserId = userId
                 };
+                community.CountSubscriptions += 1;
                 _context.CommunitySubscriptions.Add(newSub);
+                _context.Communities.Update(community);
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Suscripción realizada");
                 return Ok("Comunidad suscrita correctamente");
@@ -81,21 +84,6 @@ namespace ComunApi.Controllers
                 _logger.LogWarning("No se encontró la comunidad para suscribirse");
                 return NotFound("No se encuentra la comunidad");
             }
-        }
-
-        [HttpGet("All")]
-        public async Task<IActionResult> GetCommunities()
-        {  
-            var communities = await _context.Communities
-                .Select(community => new CommunityListDTO
-                {
-                    Id = community.Id,
-                    ComName = community.ComName,
-                    ComPicture = community.ComPicture,
-                })
-                .ToListAsync();
-            _logger.LogInformation("Listado de comunidades");
-            return Ok(communities);
         }
 
         [HttpGet("{id}")]
@@ -112,8 +100,8 @@ namespace ComunApi.Controllers
                     ComBanner = community.ComBanner,
                     ComDescription = community.ComDescription,
                     CreatorId = community.CreatorId,
-                    Subscriptions = _context.CommunitySubscriptions.Count(r => r.CommunityId == community.Id)
-                }; 
+                    Subscriptions = community.CountSubscriptions
+                };
                 _logger.LogInformation("Comunidad sacada");
                 return Ok(com);
             }
@@ -123,29 +111,89 @@ namespace ComunApi.Controllers
                 return NotFound();
             }
         }
-        [HttpGet("bycreator/{creatorId}")]
-        public async Task<IActionResult> GetCommunitiesByCreatorId(int creatorId)
+
+        [HttpGet("All")]
+        public async Task<IActionResult> GetCommunities([FromQuery] int pageNumber = 1, [FromQuery] string name = null)
         {
-          
-                var communities = await _context.Communities
-                    .Where(c => c.CreatorId == creatorId)
-                    .Select(c => new CommunityListDTO
-                    {
-                        Id = c.Id,
-                        ComName = c.ComName,
-                        ComPicture = c.ComPicture
-                    })
-                    .ToListAsync();
-                if (communities.Any())
+            int PageSize = 10;
+
+            var communitiesQuery = _context.Communities.AsQueryable();
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                communitiesQuery = communitiesQuery.Where(c => c.ComName.Contains(name));
+            }
+
+            var total = await communitiesQuery.CountAsync();
+
+            var communities = await communitiesQuery
+                .OrderBy(c => c.Id)
+                .Skip((pageNumber - 1) * PageSize)
+                .Take(PageSize)
+                .Select(c => new CommunityListDTO
                 {
-                    _logger.LogInformation("Saca las comundiades por creador");
-                    return Ok(communities);
-                }
-                else
+                    Id = c.Id,
+                    ComName = c.ComName,
+                    ComPicture = c.ComPicture
+                })
+                .ToListAsync();
+
+            PageDTO<CommunityListDTO> result = new()
+            {
+                Data = communities,
+                PageNumber = pageNumber,
+                PageSize = PageSize,
+                TotalRecords = total,
+            };
+
+            _logger.LogInformation("Comunidades paginadas con filtro por nombre");
+            return Ok(result);
+        }
+
+
+        [HttpGet("bycreator/{creatorId}")]
+        public async Task<IActionResult> GetCommunitiesByCreatorId(int creatorId, [FromQuery] int pageNumber = 1, [FromQuery] string name = null)
+        {
+            int pageSize = 10;
+
+            var communitiesQuery = _context.Communities
+                .Where(c => c.CreatorId == creatorId);
+
+            if (!string.IsNullOrEmpty(name))
+            {
+                communitiesQuery = communitiesQuery.Where(c => c.ComName.Contains(name));
+            }
+
+            var total = await communitiesQuery.CountAsync();
+
+            var communitiesCreator = await communitiesQuery
+                .OrderBy(c => c.Id)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(c => new CommunityListDTO
                 {
-                    _logger.LogInformation("Usuario sin comunidades");
-                    return NotFound("No se encontraron comunidades creadas por este usuario.");
-                }  
+                    Id = c.Id,
+                    ComName = c.ComName,
+                    ComPicture = c.ComPicture
+                })
+                .ToListAsync();
+
+            if (!communitiesCreator.Any())
+            {
+                _logger.LogInformation("Usuario sin comunidades");
+                return NotFound("No se encontraron comunidades creadas por este usuario.");
+            }
+
+            var result = new PageDTO<CommunityListDTO>
+            {
+                Data = communitiesCreator,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalRecords = total
+            };
+
+            _logger.LogInformation("Comunidades por creador");
+            return Ok(result);
         }
 
         [Authorize]
@@ -250,7 +298,9 @@ namespace ComunApi.Controllers
 
                 if (remSub != null)
                 {
+                    community.CountSubscriptions -= 1;
                     _context.CommunitySubscriptions.Remove(remSub);
+                    _context.Communities.Update(community);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Desubscripción realizada");
                     return Ok("Comunidad desubscrita correctamente");

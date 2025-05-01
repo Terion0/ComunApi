@@ -49,7 +49,7 @@ namespace ComunApi.DbsContext
 
 
 
-            // Configuración de la tabla ThreadCom
+         
             modelBuilder.Entity<ThreadCom>()
                 .HasKey(t => t.Id); // Clave primaria
 

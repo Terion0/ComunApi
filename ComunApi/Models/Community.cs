@@ -16,6 +16,7 @@ namespace ComunApi.Models
 
         public ICollection<ThreadCom> Threads { get; set; } = new List<ThreadCom>();
         public ICollection<UserCommunityRole> UserRoles { get; set; } = new List<UserCommunityRole>();
+        public int CountSubscriptions { get; set; }
         public ICollection<CommunitySubscriptions> Subscripciones { get; set; } = new List<CommunitySubscriptions>();
 
     }

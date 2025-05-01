@@ -24,7 +24,8 @@ namespace ComunApi.Migrations
                     ComDescription = table.Column<string>(type: "text", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    CreatorId = table.Column<int>(type: "integer", nullable: false)
+                    CreatorId = table.Column<int>(type: "integer", nullable: false),
+                    CountSubscriptions = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -82,6 +83,7 @@ namespace ComunApi.Migrations
                     Content = table.Column<string>(type: "text", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    CountLikes = table.Column<int>(type: "integer", nullable: false),
                     CommunityId = table.Column<int>(type: "integer", nullable: false),
                     CreatorId = table.Column<int>(type: "integer", nullable: false)
                 },
@@ -138,6 +140,7 @@ namespace ComunApi.Migrations
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     CountResponses = table.Column<int>(type: "integer", nullable: false),
+                    CountLikes = table.Column<int>(type: "integer", nullable: false),
                     ThreadId = table.Column<int>(type: "integer", nullable: false),
                     CreatorId = table.Column<int>(type: "integer", nullable: false),
                     ParentId = table.Column<int>(type: "integer", nullable: true)

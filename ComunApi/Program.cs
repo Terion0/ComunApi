@@ -71,11 +71,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             };
         });
 
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("UsuarioAutenticado", policy =>
-        policy.RequireAuthenticatedUser());
-});
 
 var app = builder.Build();
 using (var scope = app.Services.CreateScope())

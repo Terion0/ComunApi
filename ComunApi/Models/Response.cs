@@ -11,6 +11,7 @@ namespace ComunApi.Models
         public DateTime CreatedAt { get; set; }  
         public DateTime UpdatedAt { get; set; }
         public int CountResponses { get; set; }
+        public int CountLikes { get; set; }
 
         public int ThreadId { get; set; }
         public ThreadCom Thread { get; set; }

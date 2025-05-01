@@ -90,7 +90,6 @@ namespace ComunApi.Controllers
         }
 
 
-
         [HttpPost("assignRole")]
         [Authorize]
         public async Task<IActionResult> AssignRoleToUser([FromBody] AssReRoleDTO dto)

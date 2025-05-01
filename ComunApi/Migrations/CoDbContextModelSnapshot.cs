@@ -46,6 +46,9 @@ namespace ComunApi.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("CountSubscriptions")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -136,6 +139,9 @@ namespace ComunApi.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("CountLikes")
+                        .HasColumnType("integer");
+
                     b.Property<int>("CountResponses")
                         .HasColumnType("integer");
 
@@ -211,6 +217,9 @@ namespace ComunApi.Migrations
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("CountLikes")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ComunApi.Migrations
 {
     [DbContext(typeof(CoDbContext))]
-    [Migration("20250427114246_Init_Mig")]
+    [Migration("20250430181834_Init_Mig")]
     partial class Init_Mig
     {
         /// <inheritdoc />
@@ -48,6 +48,9 @@ namespace ComunApi.Migrations
                     b.Property<string>("ComPicture")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("CountSubscriptions")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -139,6 +142,9 @@ namespace ComunApi.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<int>("CountLikes")
+                        .HasColumnType("integer");
+
                     b.Property<int>("CountResponses")
                         .HasColumnType("integer");
 
@@ -214,6 +220,9 @@ namespace ComunApi.Migrations
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<int>("CountLikes")
+                        .HasColumnType("integer");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
