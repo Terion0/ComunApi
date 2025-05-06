@@ -61,6 +61,7 @@ namespace ComunApi.Controllers
                 await _context.SaveChangesAsync();
 
                 string profileImagePath="";
+                string picUID = $"{Guid.NewGuid()}";
                 if (ThreadDTO.Images != null)
                 {
                     for (int i=0;i<ThreadDTO.Images.Count;i++)
@@ -74,8 +75,8 @@ namespace ComunApi.Controllers
                             if (!_fileFolderService.IsValidFileSize(ThreadDTO.Images[i].Length, maxSize))
                                 return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
 
-                            string picName = $"{thread.Title}{i}{ThreadDTO.Images[i].FileName}";
-                            profileImagePath = await _fileFolderService.SaveFileAsync(ThreadDTO.Images[i],picName, "community_images/Threads");
+                            string picName = $"{picUID}_{i}";
+                            profileImagePath = await _fileFolderService.SaveFileAsync(ThreadDTO.Images[i],picUID, "community_images/Threads");
                             if (profileImagePath == null)
                                 return BadRequest("Error al guardar la imagen de perfil.");
                         }
@@ -384,7 +385,7 @@ namespace ComunApi.Controllers
                         }
 
                         List<string> imagePaths = new List<string>();
-
+                        string picUID = $"{Guid.NewGuid()}";
                         for (int i = 0; i < ThreadDTO.Images.Count; i++)
                         {
                             if (ThreadDTO.Images[i] != null && ThreadDTO.Images[i].Length > 0)
@@ -396,7 +397,7 @@ namespace ComunApi.Controllers
                                 if (!_fileFolderService.IsValidFileSize(ThreadDTO.Images[i].Length, maxSize))
                                     return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
 
-                                string picName = $"{thread.Title}{i}{ThreadDTO.Images[i].FileName}";
+                                string picName = $"{picUID}_{i}";
                                 string  profileImagePath = await _fileFolderService.SaveFileAsync(ThreadDTO.Images[i], picName, "community_images/Threads");
                                 if (profileImagePath == null)
                                     return BadRequest("Error al guardar la imagen de perfil.");

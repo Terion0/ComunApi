@@ -29,7 +29,7 @@ namespace ComunApi.Controllers
 
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> CreateCommunity([FromForm] CommunityCreateDTO CommunityDTO, IFormFile? profileImage, IFormFile? bannerImage)
+        public async Task<IActionResult> CreateCommunity([FromForm] CommunityCreateDTO CommunityDTO)
         {
             int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
 
@@ -42,31 +42,32 @@ namespace ComunApi.Controllers
 
             string profileImagePath = ""; 
             string bannerImagePath = "";
-
-            if (profileImage != null && profileImage.Length > 0)
+            string picUID = $"{Guid.NewGuid()}";
+            if (CommunityDTO.profileImage != null && CommunityDTO.profileImage.Length > 0)
             {
-                string profileExtension = Path.GetExtension(profileImage.FileName).ToLower();
+                string profileExtension = Path.GetExtension(CommunityDTO.profileImage.FileName).ToLower();
                 if (!_fileFolderService.IsValidExtension(profileExtension))
                     return BadRequest("Solo se permiten archivos JPG o PNG para la imagen de perfil.");
 
-                if (!_fileFolderService.IsValidFileSize(profileImage.Length, maxSize))
+                if (!_fileFolderService.IsValidFileSize(CommunityDTO.profileImage.Length, maxSize))
                     return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
 
-                profileImagePath = await _fileFolderService.SaveFileAsync(profileImage, CommunityDTO.ComName, "community_images/Profile");
+               
+                profileImagePath = await _fileFolderService.SaveFileAsync(CommunityDTO.profileImage, picUID, "community_images/Profile");
                 if (profileImagePath == null)
                     return BadRequest("Error al guardar la imagen de perfil.");
             }
 
-            if (bannerImage != null && bannerImage.Length > 0)
+            if (CommunityDTO.bannerImage != null && CommunityDTO.bannerImage.Length > 0)
             {
-                var bannerExtension = Path.GetExtension(bannerImage.FileName).ToLower();
+                var bannerExtension = Path.GetExtension(CommunityDTO.bannerImage.FileName).ToLower();
                 if (!_fileFolderService.IsValidExtension(bannerExtension))
                     return BadRequest("Solo se permiten archivos JPG o PNG para el banner.");
 
-                if (!_fileFolderService.IsValidFileSize(bannerImage.Length, maxSize))
+                if (!_fileFolderService.IsValidFileSize(CommunityDTO.bannerImage.Length, maxSize))
                     return BadRequest("El banner no debe exceder los 5 MB.");
-
-                bannerImagePath = await _fileFolderService.SaveFileAsync(bannerImage, CommunityDTO.ComName, "community_images/Banner");
+               
+                bannerImagePath = await _fileFolderService.SaveFileAsync(CommunityDTO.bannerImage, picUID, "community_images/Banner");
                 if (bannerImagePath == null)
                     return BadRequest("Error al guardar el banner.");
             }
@@ -264,67 +265,72 @@ namespace ComunApi.Controllers
 
         [HttpPut("")]
         [Authorize]
-        public async Task<IActionResult> UpdateCommunity([FromForm] CommunityUpdateDTO CommunityDTO, IFormFile? newProfileImage, IFormFile? newBannerImage)
+        public async Task<IActionResult> UpdateCommunity([FromForm] CommunityUpdateDTO CommunityDTO)
         {
             var community = await _context.Communities.FindAsync(CommunityDTO.Id);
             if (community != null)
             {
+                if (string.IsNullOrEmpty(CommunityDTO.ComName))
+                {
+                    return BadRequest("El nombre de la comunidad es obligatorio.");
+                }
+
+
                 var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
                 if (community.CreatorId == userId)
                 {
                     long maxSize = 5 * 1024 * 1024;
+                    string picUID = $"{Guid.NewGuid()}";
+                    if (CommunityDTO.newProfileImage != null && CommunityDTO.newProfileImage.Length > 0)
+                    { 
 
-                    if (newProfileImage != null && newProfileImage.Length > 0)
-                    {
-                        string profileExtension = Path.GetExtension(newProfileImage.FileName).ToLower();
+                            string profileExtension = Path.GetExtension(CommunityDTO.newProfileImage.FileName).ToLower();
 
-                        if (!_fileFolderService.IsValidExtension(profileExtension))
-                            return BadRequest("Solo se permiten archivos JPG o PNG para la imagen de perfil.");
+                            if (!_fileFolderService.IsValidExtension(profileExtension))
+                                return BadRequest("Solo se permiten archivos JPG o PNG para la imagen de perfil.");
 
-                        if (!_fileFolderService.IsValidFileSize(newProfileImage.Length, maxSize))
-                            return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
+                            if (!_fileFolderService.IsValidFileSize(CommunityDTO.newProfileImage.Length, maxSize))
+                                return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
 
-                        if (!string.IsNullOrEmpty(community.ComPicture))
-                        {
-                            string oldProfilePath = Path.Combine(Directory.GetCurrentDirectory(), community.ComPicture.TrimStart('/'));
-                            _fileFolderService.DeleteFile(oldProfilePath);
-                        }
+                            if (!string.IsNullOrEmpty(community.ComPicture))
+                            {
+                                string oldProfilePath = Path.Combine(Directory.GetCurrentDirectory(), community.ComPicture.TrimStart('/'));
+                                _fileFolderService.DeleteFile(oldProfilePath);
+                            }
 
-                        var newPath = await _fileFolderService.SaveFileAsync(newProfileImage, community.ComName, "community_images/Profile");
-                        if (newPath == null)
-                            return BadRequest("Error al guardar la nueva imagen de perfil.");
+                            var newPath = await _fileFolderService.SaveFileAsync(CommunityDTO.newProfileImage, picUID, "community_images/Profile");
+                            if (newPath == null)
+                                return BadRequest("Error al guardar la nueva imagen de perfil.");
 
-                        community.ComPicture = newPath;
+                            community.ComPicture = newPath;
+                        
                     }
 
-                    if (newBannerImage != null && newBannerImage.Length > 0)
+                    if (CommunityDTO.newBannerImage != null && CommunityDTO.newBannerImage.Length > 0)
                     {
-                        string bannerExtension = Path.GetExtension(newBannerImage.FileName).ToLower();
+                            string bannerExtension = Path.GetExtension(CommunityDTO.newBannerImage.FileName).ToLower();
 
-                        if (!_fileFolderService.IsValidExtension(bannerExtension))
-                            return BadRequest("Solo se permiten archivos JPG o PNG para el banner.");
+                            if (!_fileFolderService.IsValidExtension(bannerExtension))
+                                return BadRequest("Solo se permiten archivos JPG o PNG para el banner.");
 
-                        if (!_fileFolderService.IsValidFileSize(newBannerImage.Length, maxSize))
-                            return BadRequest("El banner no debe exceder los 5 MB.");
+                            if (!_fileFolderService.IsValidFileSize(CommunityDTO.newBannerImage.Length, maxSize))
+                                return BadRequest("El banner no debe exceder los 5 MB.");
 
-                        if (!string.IsNullOrEmpty(community.ComBanner))
-                        {
-                            string oldBannerPath = Path.Combine(Directory.GetCurrentDirectory(), community.ComBanner.TrimStart('/'));
-                            _fileFolderService.DeleteFile(oldBannerPath);
-                        }
+                            if (!string.IsNullOrEmpty(community.ComBanner))
+                            {
+                                string oldBannerPath = Path.Combine(Directory.GetCurrentDirectory(), community.ComBanner.TrimStart('/'));
+                                _fileFolderService.DeleteFile(oldBannerPath);
+                            }
 
-                        var newBannerPath = await _fileFolderService.SaveFileAsync(newBannerImage, community.ComName, "community_images/Banner");
-                        if (newBannerPath == null)
-                            return BadRequest("Error al guardar el nuevo banner.");
+                            var newBannerPath = await _fileFolderService.SaveFileAsync(CommunityDTO.newBannerImage, picUID, "community_images/Banner");
+                            if (newBannerPath == null)
+                                return BadRequest("Error al guardar el nuevo banner.");
 
-                        community.ComBanner = newBannerPath;
+                            community.ComBanner = newBannerPath;
+                        
                     }
 
-                    if (!string.IsNullOrEmpty(CommunityDTO.ComName))
-                    {
-                        community.ComName = CommunityDTO.ComName;
-                    }
-
+                    community.ComName = CommunityDTO.ComName;
                     community.ComDescription = CommunityDTO.ComDescription;
                     community.UpdatedAt = DateTime.UtcNow;
 
