@@ -113,14 +113,9 @@ namespace ComunApi.Migrations
                     b.Property<int>("RoleId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("CommunityId1")
-                        .HasColumnType("integer");
-
                     b.HasKey("UserId", "CommunityId", "RoleId");
 
                     b.HasIndex("CommunityId");
-
-                    b.HasIndex("CommunityId1");
 
                     b.HasIndex("RoleId");
 
@@ -299,14 +294,10 @@ namespace ComunApi.Migrations
             modelBuilder.Entity("ComunApi.Models.Intermediares.UserCommunityRole", b =>
                 {
                     b.HasOne("ComunApi.Models.Community", "Community")
-                        .WithMany()
+                        .WithMany("UserRoles")
                         .HasForeignKey("CommunityId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("ComunApi.Models.Community", null)
-                        .WithMany("UserRoles")
-                        .HasForeignKey("CommunityId1");
 
                     b.HasOne("ComunApi.Models.Role", "Role")
                         .WithMany("UserCommunityRoles")

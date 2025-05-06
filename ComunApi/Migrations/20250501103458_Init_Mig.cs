@@ -104,8 +104,7 @@ namespace ComunApi.Migrations
                 {
                     UserId = table.Column<int>(type: "integer", nullable: false),
                     CommunityId = table.Column<int>(type: "integer", nullable: false),
-                    RoleId = table.Column<int>(type: "integer", nullable: false),
-                    CommunityId1 = table.Column<int>(type: "integer", nullable: true)
+                    RoleId = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -116,11 +115,6 @@ namespace ComunApi.Migrations
                         principalTable: "Communities",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_CommunityRoles_Communities_CommunityId1",
-                        column: x => x.CommunityId1,
-                        principalTable: "Communities",
-                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_CommunityRoles_Roles_RoleId",
                         column: x => x.RoleId,
@@ -222,11 +216,6 @@ namespace ComunApi.Migrations
                 name: "IX_CommunityRoles_CommunityId",
                 table: "CommunityRoles",
                 column: "CommunityId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CommunityRoles_CommunityId1",
-                table: "CommunityRoles",
-                column: "CommunityId1");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CommunityRoles_RoleId",

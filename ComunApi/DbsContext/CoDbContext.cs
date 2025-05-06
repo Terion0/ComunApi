@@ -100,18 +100,7 @@ namespace ComunApi.DbsContext
             modelBuilder.Entity<UserCommunityRole>()
                 .HasKey(ur => new { ur.UserId, ur.CommunityId, ur.RoleId }); // Clave compuesta
 
-            modelBuilder.Entity<UserCommunityRole>()
-                .HasOne(ur => ur.Role) // Un UserCommunityRole tiene un rol
-                .WithMany() // Los roles no necesitan una relación inversa con UserCommunityRoles
-                .HasForeignKey(ur => ur.RoleId) // Clave foránea en UserCommunityRole
-                .OnDelete(DeleteBehavior.Cascade); // Eliminar roles de usuario cuando se elimina un rol
-
-            modelBuilder.Entity<UserCommunityRole>()
-                .HasOne(ur => ur.Community) // Un UserCommunityRole tiene una comunidad
-                .WithMany() // Las comunidades no necesitan una relación inversa con UserCommunityRoles
-                .HasForeignKey(ur => ur.CommunityId) // Clave foránea en UserCommunityRole
-                .OnDelete(DeleteBehavior.Cascade); // Eliminar roles de usuario cuando se elimina una comunidad
-
+            
             modelBuilder.Entity<Role>()
                 .HasKey(r => r.Id); // Clave primaria
 

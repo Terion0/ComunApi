@@ -1,8 +1,10 @@
 using ComunApi.DbsContext;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using ProfApi.Services;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -70,6 +72,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 ClockSkew = TimeSpan.Zero 
             };
         });
+builder.Services.AddScoped<FileFolderService>();
 
 
 var app = builder.Build();
@@ -86,6 +89,11 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(Path.Combine(Directory.GetCurrentDirectory(), "community_images")),
+    RequestPath = "/community_images"
+});
 
 app.MapControllers();
 

@@ -10,6 +10,9 @@ using Microsoft.EntityFrameworkCore;
 using System.Threading;
 using ComunApi.Models.Intermediares;
 using ComunApi.Models.DTO.DTOPages;
+using Microsoft.Extensions.FileProviders;
+using ProfApi.Services;
+using System.IO;
 
 namespace ComunApi.Controllers
 {
@@ -19,20 +22,29 @@ namespace ComunApi.Controllers
     {
         private readonly CoDbContext _context;
         private readonly ILogger<ThreadController> _logger;
+        private readonly FileFolderService _fileFolderService;
 
-        public ThreadController(CoDbContext context, ILogger<ThreadController> logger)
+        public ThreadController(CoDbContext context, ILogger<ThreadController> logger, FileFolderService fileFolderService)
         {
             _context = context;
             _logger = logger;
+            _fileFolderService = fileFolderService;
         }
 
        
         [HttpPost]
         [Authorize]
-        public async Task<IActionResult> CreateThread([FromBody] ThreadCreateDTO ThreadDTO)
+        public async Task<IActionResult> CreateThread([FromForm] ThreadCreateDTO ThreadDTO)
         {
             int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
             var com = await _context.Communities.FindAsync(ThreadDTO.CommunityId);
+            long maxSize = 5 * 1024 * 1024;
+
+            if (string.IsNullOrEmpty(ThreadDTO.Title))
+            {
+                return BadRequest("El nombre de la comunidad es obligatorio.");
+            }
+
             if (com != null)
             {
                 var thread = new ThreadCom
@@ -44,18 +56,34 @@ namespace ComunApi.Controllers
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
-
+             
                 _context.Threads.Add(thread);
                 await _context.SaveChangesAsync();
 
+                string profileImagePath="";
                 if (ThreadDTO.Images != null)
                 {
-                    foreach (string imageUrl in ThreadDTO.Images)
+                    for (int i=0;i<ThreadDTO.Images.Count;i++)
                     {
+                        if (ThreadDTO.Images[i] != null && ThreadDTO.Images[i].Length > 0)
+                        {
+                            string profileExtension = Path.GetExtension(ThreadDTO.Images[i].FileName).ToLower();
+                            if (!_fileFolderService.IsValidExtension(profileExtension))
+                                return BadRequest("Solo se permiten archivos JPG o PNG para la imagen de perfil.");
+
+                            if (!_fileFolderService.IsValidFileSize(ThreadDTO.Images[i].Length, maxSize))
+                                return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
+
+                            string picName = $"{thread.Title}{i}{ThreadDTO.Images[i].FileName}";
+                            profileImagePath = await _fileFolderService.SaveFileAsync(ThreadDTO.Images[i],picName, "community_images/Threads");
+                            if (profileImagePath == null)
+                                return BadRequest("Error al guardar la imagen de perfil.");
+                        }
+
                         var threadImage = new ThreadImage
                         {
                             ThreadId = thread.Id,
-                            ImageUrl = imageUrl
+                            ImageUrl = profileImagePath
                         };
                         _context.ThreadImages.Add(threadImage);
                     }
@@ -285,7 +313,7 @@ namespace ComunApi.Controllers
             return Ok(result);
         }
 
-        [HttpGet("{idCom}")]
+        [HttpGet("{idThread}")]
         public async Task<IActionResult> GetThreadById(int idThread)
         {
             var threadDto = await _context.Threads
@@ -321,9 +349,13 @@ namespace ComunApi.Controllers
 
         [HttpPut()]
         [Authorize]
-        public async Task<IActionResult> UpdateThread([FromBody] ThreadUpdateDTO ThreadDTO)
+        public async Task<IActionResult> UpdateThread([FromForm] ThreadUpdateDTO ThreadDTO)
         {
-            var thread = await _context.Threads.FindAsync(ThreadDTO.Id);
+            var thread = await _context.Threads
+                .Include(t => t.Images)
+                .FirstOrDefaultAsync(t => t.Id == ThreadDTO.Id);
+
+            long maxSize = 5 * 1024 * 1024;
             if (thread != null)
             {
                 var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
@@ -333,21 +365,71 @@ namespace ComunApi.Controllers
                     thread.Content = ThreadDTO.Content;
                     thread.UpdatedAt = DateTime.UtcNow;
 
+                    List<ThreadImage> onServer = thread.Images.ToList();  
                     if (ThreadDTO.Images != null)
                     {
-                      
-                        var existingImages = _context.ThreadImages.Where(imagen => imagen.ThreadId == thread.Id).ToList();
-                        _context.ThreadImages.RemoveRange(existingImages);       
-                        foreach (var imageUrl in ThreadDTO.Images)
+                        if (onServer.Count > 0) 
                         {
-                            var threadImage = new ThreadImage
+                            List<string> imagesToUpdate = ThreadDTO.Images.Select(file => file.FileName).ToList();
+                            List<string> serverImages = onServer.Select(img => img.ImageUrl).ToList();
+                            List<string> imagesToAggregate = imagesToUpdate.Where(img => !serverImages.Contains(img)).ToList();
+                            List<string>imagesToDelete = serverImages.Where(img => !imagesToUpdate.Contains(img)).ToList();
+
+                            ThreadDTO.Images = ThreadDTO.Images
+                                .Where(file => imagesToAggregate.Contains(file.FileName))
+                                .ToList();
+
+                            onServer = onServer
+                                .Where(img => imagesToDelete.Contains(img.ImageUrl)).ToList();
+                        }
+
+                        List<string> imagePaths = new List<string>();
+
+                        for (int i = 0; i < ThreadDTO.Images.Count; i++)
+                        {
+                            if (ThreadDTO.Images[i] != null && ThreadDTO.Images[i].Length > 0)
                             {
-                                ThreadId = thread.Id,
-                                ImageUrl = imageUrl
-                            };
-                            _context.ThreadImages.Add(threadImage);
+                                string profileExtension = Path.GetExtension(ThreadDTO.Images[i].FileName).ToLower();
+                                if (!_fileFolderService.IsValidExtension(profileExtension))
+                                    return BadRequest("Solo se permiten archivos JPG o PNG para la imagen de perfil.");
+
+                                if (!_fileFolderService.IsValidFileSize(ThreadDTO.Images[i].Length, maxSize))
+                                    return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
+
+                                string picName = $"{thread.Title}{i}{ThreadDTO.Images[i].FileName}";
+                                string  profileImagePath = await _fileFolderService.SaveFileAsync(ThreadDTO.Images[i], picName, "community_images/Threads");
+                                if (profileImagePath == null)
+                                    return BadRequest("Error al guardar la imagen de perfil.");
+
+                                imagePaths.Add(profileImagePath);
+
+                            }
+
+                            foreach (var path in imagePaths)
+                            {
+                                var threadImage = new ThreadImage
+                                {
+                                    ThreadId = thread.Id,
+                                    ImageUrl = path
+                                };
+                                _context.ThreadImages.Add(threadImage);
+                            }
+                        }
+                        
+                    }
+                    foreach (ThreadImage path in onServer)
+                    {
+                        var imagepath = Path.Combine(Directory.GetCurrentDirectory(), path.ImageUrl.TrimStart('/'));
+                        if (!_fileFolderService.DeleteFile(imagepath))
+                        {
+                            _logger.LogWarning("No se pudo eliminar la imagen.");
+                        }
+                        else
+                        {
+                            _logger.LogInformation("Imagen de thread eliminada.");
                         }
                     }
+                    _context.ThreadImages.RemoveRange(onServer);
 
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Thread actualizado correctamente");
@@ -366,7 +448,8 @@ namespace ComunApi.Controllers
             }
         }
 
-        [HttpDelete("community/{idCom}/Thread/{idCom}")]
+
+        [HttpDelete("community/{idCom}/Thread/{idThread}")]
         [Authorize]
         public async Task<IActionResult> DeleteThread(int idThread, int idCom)
         {
@@ -390,6 +473,27 @@ namespace ComunApi.Controllers
                 }
                 if (thread.CreatorId == userId || canDeleteThread)
                 {
+                    var images = await _context.ThreadImages
+                        .Where(img => img.ThreadId == thread.Id)
+                        .Select(img => img.ImageUrl)
+                        .ToListAsync();
+
+                    if (images.Count > 0)
+                    {
+                        foreach (string path in images)
+                        {
+                            var imagepath = Path.Combine(Directory.GetCurrentDirectory(), path.TrimStart('/'));
+                            if (!_fileFolderService.DeleteFile(imagepath))
+                            {
+                                _logger.LogWarning("No se pudo eliminar la imagen.");
+                            }
+                            else
+                            {
+                                _logger.LogInformation("Imagen de thread eliminada.");
+                            }
+                        }
+                    }
+
                     _context.Threads.Remove(thread);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Thread eliminado");
