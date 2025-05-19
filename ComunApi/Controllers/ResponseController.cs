@@ -8,6 +8,8 @@ using ComunApi.DbsContext;
 using Microsoft.EntityFrameworkCore;
 using ComunApi.Models.Intermediares;
 using System.Threading;
+using ComunApi.Models.DTO.DTOPages;
+using ComunApi.Models.DTO.DTOThread;
 
 namespace ComunApi.Controllers
 {
@@ -60,18 +62,18 @@ namespace ComunApi.Controllers
                     else
                     {
                         _logger.LogWarning($"No se encontró la respuesta padre con ID {response.ParentId}");
-                        return BadRequest("Respuesta padre no encontrada.");
+                        return BadRequest(new { error = "Respuesta padre no encontrada." });
                     }
                 }
 
                 await _context.SaveChangesAsync();
 
                 _logger.LogInformation("Respuesta creada correctamente.");
-                return Ok("Respuesta creada correctamente");
+                return Ok(new { error = "Respuesta creada correctamente" });
             }
             else {
                 _logger.LogInformation("Thread no encontrado");
-                return NotFound("Thread no encontrado");
+                return NotFound(new { error = "Thread no encontrado" });
             }
         }
 
@@ -106,95 +108,63 @@ namespace ComunApi.Controllers
                     _context.Responses.Update(response);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Like a la respuesta realizado");
-                    return Ok("Like a la respuesta realizado correctamente");
+                    return Ok(new { error = "Like a la respuesta realizado correctamente" });
                 }
             }
             else
             {
                 _logger.LogWarning("No se encontró la respuesta para dar like");
-                return NotFound("No se encuentra la respuesta");
+                return NotFound(new { error = "No se encuentra la respuesta" });
             }
         }
 
+     
+
         [HttpGet("{threadId}/Responses")]
-        public async Task<IActionResult> GetMainResponses(int threadId, [FromQuery] int pageNumber = 1)
+        public async Task<IActionResult> GetResponses(int threadId, [FromQuery] int? parentId = null, [FromQuery] int pageNumber = 1)
         {
             int pageSize = 10;
 
-            var totalResponses = await _context.Responses
-                .Where(response => response.ThreadId == threadId && response.ParentId == null)
-                .CountAsync();
+            var query = _context.Responses.AsQueryable();
 
-            var responses = await _context.Responses
-                .Where(response => response.ThreadId == threadId && response.ParentId == null)
-                .OrderBy(response => response.Id)
+            query = query.Where(r => r.ThreadId == threadId);
+
+            if (parentId == null)
+                query = query.Where(r => r.ParentId == null);
+            else
+                query = query.Where(r => r.ParentId == parentId);
+
+            var totalRecords = await query.CountAsync();
+
+            var responses = await query
+                .OrderBy(r => r.Id)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
-                .Select(response => new ResponseDetailDTO
+                .Select(r => new ResponseDetailDTO
                 {
-                    Id = response.Id,
-                    Content = response.Content,
-                    IsDeleted = response.IsDeleted,
-                    CreatorId = response.CreatorId,
-                    Responses = response.CountResponses,
-                    Likes = response.CountLikes
+                    Id = r.Id,
+                    Content = r.Content,
+                    IsDeleted = r.IsDeleted,
+                    CreatorId = r.CreatorId,
+                    Responses = r.CountResponses,
+                    Likes = r.CountLikes
                 })
                 .ToListAsync();
 
-            var result = new
+            var result = new PageDTO<ResponseDetailDTO>
             {
                 Data = responses,
                 PageNumber = pageNumber,
                 PageSize = pageSize,
-                TotalRecords = totalResponses,
+                TotalRecords = totalRecords
             };
 
-            _logger.LogInformation("Respuestas principales paginadas para el hilo");
+            _logger.LogInformation("Respuestas paginadas recuperadas con éxito.");
             return Ok(result);
         }
 
-        [HttpGet("{responseId}/Replies")]
-        public async Task<IActionResult> GetRepliesForResponse(int responseId, [FromQuery] int pageNumber = 1)
-        {
-            int pageSize = 10;
 
-            var totalReplies = await _context.Responses
-                .Where(response => response.ParentId == responseId && !response.IsDeleted)
-                .CountAsync();
 
-            var replies = await _context.Responses
-                .Where(response => response.ParentId == responseId && !response.IsDeleted)
-                .OrderBy(response => response.Id)
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .Select(response => new ResponseDetailDTO
-                {
-                    Id = response.Id,
-                    Content = response.Content,
-                    IsDeleted = response.IsDeleted,
-                    CreatorId = response.CreatorId,
-                    Likes = response.CountLikes
-                })
-                .ToListAsync();
-
-            if (replies.Any())
-            {
-                var result = new
-                {
-                    Data = replies,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize,
-                    TotalReplies = totalReplies,
-                };
-                _logger.LogInformation("Respuestas paginadas recuperadas con éxito.");
-                return Ok(result);
-            }
-            else
-            {
-                _logger.LogWarning("No hay respuestas para esta respuesta.");
-                return NotFound("No hay respuestas");
-            }
-        }
 
         [HttpGet("{idResponse}")]
         public async Task<IActionResult> GetResponseById(int idResponse)
@@ -246,7 +216,7 @@ namespace ComunApi.Controllers
 
             if (responses.Any())
             {
-                var result = new
+                PageDTO<ResponseDetailDTO> result = new()
                 {
                     Data = responses,
                     PageNumber = pageNumber,
@@ -259,7 +229,7 @@ namespace ComunApi.Controllers
             else
             {
                 _logger.LogInformation("No hay respuestas creadas por este usuario.");
-                return NotFound("No se encontraron respuestas creadas por este usuario.");
+                return NotFound(new { error = "No se encontraron respuestas creadas por este usuario." });
             }
         }
 
@@ -288,7 +258,7 @@ namespace ComunApi.Controllers
 
             if (responseLikes.Any())
             {
-                var result = new
+                PageDTO<ResponseDetailDTO> result = new()
                 {
                     Data = responseLikes,
                     PageNumber = pageNumber,
@@ -301,7 +271,7 @@ namespace ComunApi.Controllers
             else
             {
                 _logger.LogInformation("El usuario no ha dado like a ninguna respuesta.");
-                return NotFound("No se encontraron respuestas a las que haya dado like.");
+                return NotFound(new { error = "No se encontraron respuestas a las que haya dado like." });
             }
         }
 
@@ -339,7 +309,7 @@ namespace ComunApi.Controllers
             }
         }
 
-        [HttpPut("community/{idCom}/Response{idResponse}")]
+        [HttpPut("community/{idCom}/Response/{idResponse}")]
         [Authorize]
         public async Task<IActionResult> DeleteResponse(int idResponse, int idCom)
         {
@@ -379,7 +349,7 @@ namespace ComunApi.Controllers
             else
             {
                 _logger.LogWarning("Respuesta  no encontrada.");
-                return NotFound("Respuesta  no encontrada.");
+                return NotFound(new { error = "Respuesta  no encontrada." });
             }
         }
 
@@ -398,7 +368,7 @@ namespace ComunApi.Controllers
                 if (existingLike == null)
                 {
                     _logger.LogWarning("El usuario no ha dado like a esta respuesta");
-                    return BadRequest("No has dado like a esta respuesta");
+                    return BadRequest(new { error = "No has dado like a esta respuesta" });
                 }
 
                 else
@@ -408,14 +378,27 @@ namespace ComunApi.Controllers
                     _context.Responses.Update(response);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Like a la respuesta eliminado");
-                    return Ok("Like a la respuesta eliminado correctamente");
+                    return Ok(new { error = "Like a la respuesta eliminado correctamente" });
                 }
             }
             else
             {
                 _logger.LogWarning("No se encontró la respuesta para eliminar el like");
-                return NotFound("No se encuentra la respuesta");
+                return NotFound(new { error = "No se encuentra la respuesta" });
             }
+        }
+
+
+        [HttpGet("HasLike/{responseId}")]
+        [Authorize]
+        public async Task<IActionResult> HasUserLikedResponse(int responseId)
+        {
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
+            bool hasLike = await _context.ResponseLikes
+                .AnyAsync(rl => rl.ResponseId == responseId && rl.UserId == userId);
+
+            return Ok(hasLike);
         }
     }
 }

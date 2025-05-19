@@ -37,7 +37,8 @@ namespace ComunApi.Controllers
 
             if (string.IsNullOrEmpty(   CommunityDTO.ComName))
             {
-                return BadRequest("El nombre de la comunidad es obligatorio.");
+                return BadRequest(new { error = "El nombre de la comunidad es obligatorio." });
+
             }
 
             string profileImagePath = ""; 
@@ -47,29 +48,29 @@ namespace ComunApi.Controllers
             {
                 string profileExtension = Path.GetExtension(CommunityDTO.profileImage.FileName).ToLower();
                 if (!_fileFolderService.IsValidExtension(profileExtension))
-                    return BadRequest("Solo se permiten archivos JPG o PNG para la imagen de perfil.");
+                    return BadRequest(new { error = "Solo se permiten archivos JPG o PNG para la imagen de perfil." });
 
                 if (!_fileFolderService.IsValidFileSize(CommunityDTO.profileImage.Length, maxSize))
-                    return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
+                    return BadRequest(new { error = "La imagen de perfil no debe exceder los 5 MB." });
 
                
                 profileImagePath = await _fileFolderService.SaveFileAsync(CommunityDTO.profileImage, picUID, "community_images/Profile");
                 if (profileImagePath == null)
-                    return BadRequest("Error al guardar la imagen de perfil.");
+                    return BadRequest(new { error = "Error al guardar la imagen de perfil." });
             }
 
             if (CommunityDTO.bannerImage != null && CommunityDTO.bannerImage.Length > 0)
             {
                 var bannerExtension = Path.GetExtension(CommunityDTO.bannerImage.FileName).ToLower();
                 if (!_fileFolderService.IsValidExtension(bannerExtension))
-                    return BadRequest("Solo se permiten archivos JPG o PNG para el banner.");
+                    return BadRequest(new { error = "Solo se permiten archivos JPG o PNG para el banner." });
 
                 if (!_fileFolderService.IsValidFileSize(CommunityDTO.bannerImage.Length, maxSize))
-                    return BadRequest("El banner no debe exceder los 5 MB.");
+                    return BadRequest(new { error = "El banner no debe exceder los 5 MB." });
                
                 bannerImagePath = await _fileFolderService.SaveFileAsync(CommunityDTO.bannerImage, picUID, "community_images/Banner");
                 if (bannerImagePath == null)
-                    return BadRequest("Error al guardar el banner.");
+                    return BadRequest(new { error = "Error al guardar el banner." });
             }
 
             var community = new Community
@@ -87,7 +88,7 @@ namespace ComunApi.Controllers
 
             _logger.LogInformation("Comunidad creada:" +community.ComName);
 
-            return Ok("Comunidad creada");
+            return Ok(new { id = community.Id });
         }
 
         [HttpPost("SubscribeToCommunity/{comid}")]
@@ -105,7 +106,7 @@ namespace ComunApi.Controllers
                 if (existingSub != null)
                 {
                     _logger.LogWarning("El usuario ya está suscrito a esta comunidad");
-                    return BadRequest("Ya estás suscrito a esta comunidad");
+                    return BadRequest(new { error = "Ya estás suscrito a esta comunidad" });
                 }
 
                 CommunitySubscriptions newSub = new()
@@ -118,12 +119,12 @@ namespace ComunApi.Controllers
                 _context.Communities.Update(community);
                 await _context.SaveChangesAsync();
                 _logger.LogInformation("Suscripción realizada");
-                return Ok("Comunidad suscrita correctamente");
+                return Ok(new { error = "Comunidad suscrita correctamente" });
             }
             else
             {
                 _logger.LogWarning("No se encontró la comunidad para suscribirse");
-                return NotFound("No se encuentra la comunidad");
+                return NotFound(new { error = "No se encuentra la comunidad" });
             }
         }
 
@@ -149,14 +150,14 @@ namespace ComunApi.Controllers
             else
             {
                 _logger.LogWarning("Comunidad no existe");
-                return NotFound();
+                return NotFound(new { error ="No encontrada" });
             }
         }
 
         [HttpGet("All")]
         public async Task<IActionResult> GetCommunities([FromQuery] int pageNumber = 1, [FromQuery] string name = null)
         {
-            int PageSize = 10;
+            int PageSize = 27;
 
             var communitiesQuery = _context.Communities.AsQueryable();
 
@@ -222,7 +223,7 @@ namespace ComunApi.Controllers
             if (!communitiesCreator.Any())
             {
                 _logger.LogInformation("Usuario sin comunidades");
-                return NotFound("No se encontraron comunidades creadas por este usuario.");
+                return NotFound(new { error = "No se encontraron comunidades creadas por este usuario." });
             }
 
             var result = new PageDTO<CommunityListDTO>
@@ -258,7 +259,7 @@ namespace ComunApi.Controllers
             else
             {
                 _logger.LogInformation("Usuario sin subscripciones");
-                return NotFound("No se encontraron comunidades a las que esté subscritas.");
+                return NotFound(new { error = "No se encontraron comunidades a las que esté subscritas." });
             }
 
         }
@@ -272,7 +273,7 @@ namespace ComunApi.Controllers
             {
                 if (string.IsNullOrEmpty(CommunityDTO.ComName))
                 {
-                    return BadRequest("El nombre de la comunidad es obligatorio.");
+                    return BadRequest(new { error = "El nombre de la comunidad es obligatorio." });
                 }
 
 
@@ -287,10 +288,10 @@ namespace ComunApi.Controllers
                             string profileExtension = Path.GetExtension(CommunityDTO.newProfileImage.FileName).ToLower();
 
                             if (!_fileFolderService.IsValidExtension(profileExtension))
-                                return BadRequest("Solo se permiten archivos JPG o PNG para la imagen de perfil.");
+                                return BadRequest(new { error = "Solo se permiten archivos JPG o PNG para la imagen de perfil." });
 
                             if (!_fileFolderService.IsValidFileSize(CommunityDTO.newProfileImage.Length, maxSize))
-                                return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
+                                return BadRequest(new { error = "La imagen de perfil no debe exceder los 5 MB." });
 
                             if (!string.IsNullOrEmpty(community.ComPicture))
                             {
@@ -300,7 +301,7 @@ namespace ComunApi.Controllers
 
                             var newPath = await _fileFolderService.SaveFileAsync(CommunityDTO.newProfileImage, picUID, "community_images/Profile");
                             if (newPath == null)
-                                return BadRequest("Error al guardar la nueva imagen de perfil.");
+                                return BadRequest(new { error = "Error al guardar la nueva imagen de perfil." });
 
                             community.ComPicture = newPath;
                         
@@ -311,10 +312,10 @@ namespace ComunApi.Controllers
                             string bannerExtension = Path.GetExtension(CommunityDTO.newBannerImage.FileName).ToLower();
 
                             if (!_fileFolderService.IsValidExtension(bannerExtension))
-                                return BadRequest("Solo se permiten archivos JPG o PNG para el banner.");
+                                return BadRequest(new { error = "Solo se permiten archivos JPG o PNG para el banner." });
 
                             if (!_fileFolderService.IsValidFileSize(CommunityDTO.newBannerImage.Length, maxSize))
-                                return BadRequest("El banner no debe exceder los 5 MB.");
+                                return BadRequest(new { error = "El banner no debe exceder los 5 MB." });
 
                             if (!string.IsNullOrEmpty(community.ComBanner))
                             {
@@ -324,7 +325,7 @@ namespace ComunApi.Controllers
 
                             var newBannerPath = await _fileFolderService.SaveFileAsync(CommunityDTO.newBannerImage, picUID, "community_images/Banner");
                             if (newBannerPath == null)
-                                return BadRequest("Error al guardar el nuevo banner.");
+                                return BadRequest(new { error = "Error al guardar el nuevo banner." });
 
                             community.ComBanner = newBannerPath;
                         
@@ -348,7 +349,7 @@ namespace ComunApi.Controllers
             else
             {
                 _logger.LogWarning("No se encontró la comunidad con ID {CommunityId}", CommunityDTO.Id);
-                return NotFound("No se encuentra la comunidad");
+                return NotFound(new { error = "No se encuentra la comunidad" });
             }
         }
 
@@ -404,7 +405,7 @@ namespace ComunApi.Controllers
             else
             {
                 _logger.LogWarning("No existe esta comunidad");
-                return NotFound("No existe");
+                return NotFound(new { error = "No existe" });
             }
         }
 
@@ -441,6 +442,18 @@ namespace ComunApi.Controllers
                 _logger.LogWarning("No se encontró la comunidad para desuscribirse");
                 return NotFound("No se encuentra la comunidad");
             }
+        }
+
+        [HttpGet("HasSubscription/{communityId}")]
+        [Authorize]
+        public async Task<IActionResult> HasUserSubscription(int communityId)
+        {
+            int userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier).Value);
+
+            bool isSubscribed = await _context.CommunitySubscriptions
+                .AnyAsync(cs => cs.CommunityId == communityId && cs.UserId == userId);
+
+            return Ok(isSubscribed);
         }
     }
 

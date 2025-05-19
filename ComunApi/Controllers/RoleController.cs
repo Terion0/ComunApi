@@ -49,13 +49,13 @@ namespace ComunApi.Controllers
                         return Ok(rols);
                     }
                     else
-                        return NotFound("El rol no existe para esta comunidad.");
+                        return NotFound(new { error = "El rol no existe para esta comunidad." });
                 }
                 else
-                    return Unauthorized("Solo el creador de la comunidad puede ver roles.");
+                    return Unauthorized(new { error = "Solo el creador de la comunidad puede ver roles." });
             }
             else
-                return NotFound("Comunidad no encontrada.");
+                return NotFound(new { error = "Comunidad no encontrada." });
         }
 
 
@@ -79,13 +79,13 @@ namespace ComunApi.Controllers
                         return Ok(userRols);
                     }
                     else
-                        return NotFound("Sin roles");
+                        return NotFound(new { error = "Sin roles" });
                 }
                 else
-                    return Unauthorized("Solo el creador de la comunidad puede ver roles.");
+                    return Unauthorized(new { error = "Solo el creador de la comunidad puede ver roles." });
             }
             else
-                return NotFound("Comunidad no encontrada.");
+                return NotFound(new { error = "Comunidad no encontrada." });
 
         }
 
@@ -101,7 +101,7 @@ namespace ComunApi.Controllers
                     .FirstOrDefaultAsync(ur => ur.UserId == dto.UserId && ur.CommunityId == dto.CommunityId);
 
                 if (userRole != null)
-                    return BadRequest("El usuario ya tiene un rol asignado en esta comunidad.");
+                    return BadRequest(new { error = "El usuario ya tiene un rol asignado en esta comunidad." });
 
                 var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);  
                     if (userId == community.CreatorId) 
@@ -120,16 +120,16 @@ namespace ComunApi.Controllers
 
                             _context.CommunityRoles.Add(newUserRole);
                             await _context.SaveChangesAsync();
-                            return Ok("Rol asignado correctamente.");
+                            return Ok(new { error = "Rol asignado correctamente." });
                         }
                         else
-                            return NotFound("El rol no existe para esta comunidad.");
+                            return NotFound(new { error = "El rol no existe para esta comunidad." });
                     }
                     else
-                        return Unauthorized("Solo el creador de la comunidad puede asignar roles.");
+                        return Unauthorized(new { error = "Solo el creador de la comunidad puede asignar roles." });
             }
             else
-                return NotFound("Comunidad no encontrada.");
+                return NotFound(new { error = "Comunidad no encontrada." });
         }
 
         [HttpDelete("removeRole")]
@@ -149,16 +149,16 @@ namespace ComunApi.Controllers
                         {
                             _context.CommunityRoles.Remove(userRole);
                             await _context.SaveChangesAsync();
-                            return Ok("Rol eliminado correctamente.");
+                            return Ok(new { error = "Rol eliminado correctamente." });
                         }
                         else
-                            return NotFound("Rol no encontrado para este usuario en la comunidad.");
+                            return NotFound(new { error = "Rol no encontrado para este usuario en la comunidad." });
                     }
                     else
-                        return Unauthorized("Solo el creador de la comunidad puede eliminar roles.");
+                        return Unauthorized(new { error = "Solo el creador de la comunidad puede eliminar roles." });
             }
             else
-                return NotFound("Comunidad no encontrada.");
+                return NotFound(new { error = "Comunidad no encontrada." });
         }
 
         
@@ -176,7 +176,7 @@ namespace ComunApi.Controllers
                             .FirstOrDefaultAsync(r => r.CommunityId == dto.CommunityId && r.RoleName == dto.RoleName);
 
                         if (existingRole != null)
-                            return BadRequest("El rol ya existe en esta comunidad.");
+                            return BadRequest(new { error = "El rol ya existe en esta comunidad." });
 
                         var newRole = new Role
                         {
@@ -189,13 +189,13 @@ namespace ComunApi.Controllers
 
                         _context.Roles.Add(newRole);
                         await _context.SaveChangesAsync();
-                        return Ok("Rol creado correctamente.");
+                        return Ok(new { error = "Rol creado correctamente." });
                  }
                  else
-                 return Unauthorized("Solo el creador de la comunidad puede crear roles.");    
+                 return Unauthorized(new { error = "Solo el creador de la comunidad puede crear roles." });    
             }
             else
-            return NotFound("Comunidad no encontrada.");
+            return NotFound(new { error = "Comunidad no encontrada." });
         }
 
         
@@ -216,16 +216,16 @@ namespace ComunApi.Controllers
                     {
                         _context.Roles.Remove(role);
                         await _context.SaveChangesAsync();
-                        return Ok("Rol eliminado correctamente.");
+                        return Ok(new { error = "Rol eliminado correctamente." });
                     }
                     else
-                        return NotFound("Rol no encontrado en esta comunidad.");
+                        return NotFound(new { error = "Rol no encontrado en esta comunidad." });
                 }
                 else
-                    return Unauthorized("Solo el creador de la comunidad puede eliminar roles.");
+                    return Unauthorized(new { error = "Solo el creador de la comunidad puede eliminar roles." });
             }
             else
-                return NotFound("Comunidad no encontrada.");
+                return NotFound(new { error = "Comunidad no encontrada." });
         }
 
         [HttpPut("Community/{comunityId}")]
@@ -249,16 +249,16 @@ namespace ComunApi.Controllers
                         role.CanDeleteThreads = role.CanDeleteThreads;
                         _context.Roles.Update(role);
                         await _context.SaveChangesAsync();
-                        return Ok("Rol updateado correctamente.");
+                        return Ok(new { error = "Rol updateado correctamente." });
                     }
                     else
-                        return NotFound("Rol no encontrado en esta comunidad.");
+                        return NotFound(new { error = "Rol no encontrado en esta comunidad." });
                 }
                 else
-                    return Unauthorized("Solo el creador de la comunidad puede eliminar roles.");
+                    return Unauthorized(new { error = "Solo el creador de la comunidad puede eliminar roles." });
             }
             else
-                return NotFound("Comunidad no encontrada.");
+                return NotFound(new { error = "Comunidad no encontrada." });
         }
 
 

@@ -93,7 +93,7 @@ namespace ComunApi.Controllers
                 }
 
                 _logger.LogInformation("Thread creado");
-                return Ok("Thread creado");
+                return Ok(new { id = thread.Id });
             }
             else
             {
@@ -117,7 +117,7 @@ namespace ComunApi.Controllers
                 if (existingLike != null)
                 {
                     _logger.LogWarning("El usuario ya ha dado like a este hilo");
-                    return BadRequest("Ya has dado like a este hilo");
+                    return BadRequest(new { error = "Ya has dado like a este hilo" });
                 }
                 else
                 {
@@ -131,13 +131,13 @@ namespace ComunApi.Controllers
                     _context.Threads.Update(thread);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Like al hilo realizado");
-                    return Ok("Like al hilo realizado correctamente");
+                    return Ok();
                 }
             }
             else
             {
                 _logger.LogWarning("No se encontró el hilo para dar like");
-                return NotFound("No se encuentra el hilo");
+                return NotFound(new { error =  "No se encuentra el hilo"});
             }
         }
 
@@ -171,7 +171,7 @@ namespace ComunApi.Controllers
             if (!threadsList.Any())
             {
                 _logger.LogInformation("No se encontraron hilos.");
-                return NotFound("No se encontraron hilos.");
+                return NotFound(new { error = "No se encontraron hilos." });
             }
 
             PageDTO<ThreadListDTO> result = new()
@@ -195,7 +195,7 @@ namespace ComunApi.Controllers
             var threadsQuery = _context.Threads
                 .Where(t => t.CommunityId == idCom);
 
-            // Filtrar por nombre de hilo si se proporciona
+           
             if (!string.IsNullOrEmpty(name))
             {
                 threadsQuery = threadsQuery.Where(t => t.Title.Contains(name));
@@ -256,7 +256,7 @@ namespace ComunApi.Controllers
             if (!threadsCreator.Any())
             {
                 _logger.LogInformation("Usuario sin threads");
-                return NotFound("No se encontraron threads creados por este usuario.");
+                return NotFound(new { error = "No se encontraron threads creados por este usuario." });
             }
 
             var result = new PageDTO<ThreadListDTO>
@@ -299,7 +299,7 @@ namespace ComunApi.Controllers
             if (!threadLikes.Any())
             {
                 _logger.LogInformation("Usuario sin likes");
-                return NotFound("No se encontraron likes a threads.");
+                return NotFound(new { error = "No se encontraron likes a threads." });
             }
 
             var result = new PageDTO<ThreadListDTO>
@@ -313,6 +313,20 @@ namespace ComunApi.Controllers
             _logger.LogInformation("Threads con likes del usuario");
             return Ok(result);
         }
+
+        [HttpGet("HasLike/{threadId}")]
+        [Authorize]
+        public async Task<IActionResult> HasUserLikedThread(int threadId)
+        {
+            int userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+
+            bool hasLike = await _context.ThreadLikes
+                .AnyAsync(tl => tl.ThreadId == threadId && tl.UserId == userId);
+
+            return Ok(hasLike);
+        }
+
+
 
         [HttpGet("{idThread}")]
         public async Task<IActionResult> GetThreadById(int idThread)
@@ -348,6 +362,8 @@ namespace ComunApi.Controllers
             }
         }
 
+
+
         [HttpPut()]
         [Authorize]
         public async Task<IActionResult> UpdateThread([FromForm] ThreadUpdateDTO ThreadDTO)
@@ -357,97 +373,89 @@ namespace ComunApi.Controllers
                 .FirstOrDefaultAsync(t => t.Id == ThreadDTO.Id);
 
             long maxSize = 5 * 1024 * 1024;
-            if (thread != null)
+
+            if (thread == null)
             {
-                var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
-                if (thread.CreatorId == userId)
+                _logger.LogWarning("No se encontró el thread");
+                return NotFound(new { error = "No se encuentra el thread" });
+            }
+
+            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+            if (thread.CreatorId != userId)
+            {
+                _logger.LogWarning("No eres el creador del thread");
+                return Forbid("No tienes permisos para actualizar este thread");
+            }
+
+          
+            thread.Title = ThreadDTO.Title;
+            thread.Content = ThreadDTO.Content;
+            thread.UpdatedAt = DateTime.UtcNow;
+
+            var onServer = thread.Images.ToList();
+            var imagesToKeep = ThreadDTO.ImagesToKeep ?? new List<string>();
+
+            var imagesToDelete = onServer
+                .Where(img => !imagesToKeep.Contains(img.ImageUrl))
+                .ToList();
+
+            foreach (var image in imagesToDelete)
+            {
+                var fullPath = Path.Combine(Directory.GetCurrentDirectory(), image.ImageUrl.TrimStart('/'));
+                if (_fileFolderService.DeleteFile(fullPath))
                 {
-                    thread.Title = ThreadDTO.Title;
-                    thread.Content = ThreadDTO.Content;
-                    thread.UpdatedAt = DateTime.UtcNow;
-
-                    List<ThreadImage> onServer = thread.Images.ToList();  
-                    if (ThreadDTO.Images != null)
-                    {
-                        if (onServer.Count > 0) 
-                        {
-                            List<string> imagesToUpdate = ThreadDTO.Images.Select(file => file.FileName).ToList();
-                            List<string> serverImages = onServer.Select(img => img.ImageUrl).ToList();
-                            List<string> imagesToAggregate = imagesToUpdate.Where(img => !serverImages.Contains(img)).ToList();
-                            List<string>imagesToDelete = serverImages.Where(img => !imagesToUpdate.Contains(img)).ToList();
-
-                            ThreadDTO.Images = ThreadDTO.Images
-                                .Where(file => imagesToAggregate.Contains(file.FileName))
-                                .ToList();
-
-                            onServer = onServer
-                                .Where(img => imagesToDelete.Contains(img.ImageUrl)).ToList();
-                        }
-
-                        List<string> imagePaths = new List<string>();
-                        string picUID = $"{Guid.NewGuid()}";
-                        for (int i = 0; i < ThreadDTO.Images.Count; i++)
-                        {
-                            if (ThreadDTO.Images[i] != null && ThreadDTO.Images[i].Length > 0)
-                            {
-                                string profileExtension = Path.GetExtension(ThreadDTO.Images[i].FileName).ToLower();
-                                if (!_fileFolderService.IsValidExtension(profileExtension))
-                                    return BadRequest("Solo se permiten archivos JPG o PNG para la imagen de perfil.");
-
-                                if (!_fileFolderService.IsValidFileSize(ThreadDTO.Images[i].Length, maxSize))
-                                    return BadRequest("La imagen de perfil no debe exceder los 5 MB.");
-
-                                string picName = $"{picUID}_{i}";
-                                string  profileImagePath = await _fileFolderService.SaveFileAsync(ThreadDTO.Images[i], picName, "community_images/Threads");
-                                if (profileImagePath == null)
-                                    return BadRequest("Error al guardar la imagen de perfil.");
-
-                                imagePaths.Add(profileImagePath);
-
-                            }
-
-                            foreach (var path in imagePaths)
-                            {
-                                var threadImage = new ThreadImage
-                                {
-                                    ThreadId = thread.Id,
-                                    ImageUrl = path
-                                };
-                                _context.ThreadImages.Add(threadImage);
-                            }
-                        }
-                        
-                    }
-                    foreach (ThreadImage path in onServer)
-                    {
-                        var imagepath = Path.Combine(Directory.GetCurrentDirectory(), path.ImageUrl.TrimStart('/'));
-                        if (!_fileFolderService.DeleteFile(imagepath))
-                        {
-                            _logger.LogWarning("No se pudo eliminar la imagen.");
-                        }
-                        else
-                        {
-                            _logger.LogInformation("Imagen de thread eliminada.");
-                        }
-                    }
-                    _context.ThreadImages.RemoveRange(onServer);
-
-                    await _context.SaveChangesAsync();
-                    _logger.LogInformation("Thread actualizado correctamente");
-                    return Ok("Thread actualizado correctamente");
+                    _logger.LogInformation($"Imagen eliminada: {image.ImageUrl}");
                 }
                 else
                 {
-                    _logger.LogWarning("No eres el creador del thread");
-                    return Forbid("No tienes permisos para actualizar este thread");
+                    _logger.LogWarning($"No se pudo eliminar: {image.ImageUrl}");
                 }
             }
-            else
+            _context.ThreadImages.RemoveRange(imagesToDelete);
+
+            if (ThreadDTO.Images != null && ThreadDTO.Images.Count > 0)
             {
-                _logger.LogWarning("No se encontró el thread");
-                return NotFound("No se encuentra el thread");
+                List<string> imagePaths = new List<string>();
+                string picUID = $"{Guid.NewGuid()}";
+
+                for (int i = 0; i < ThreadDTO.Images.Count; i++)
+                {
+                    var file = ThreadDTO.Images[i];
+                    if (file != null && file.Length > 0)
+                    {
+                        string extension = Path.GetExtension(file.FileName).ToLower();
+
+                        if (!_fileFolderService.IsValidExtension(extension))
+                            return BadRequest(new { error = "Solo se permiten archivos JPG o PNG para las imágenes." });
+
+                        if (!_fileFolderService.IsValidFileSize(file.Length, maxSize))
+                            return BadRequest(new { error = "Cada imagen no debe exceder los 5 MB." });
+
+                        string fileName = $"{picUID}_{i}";
+                        string savedPath = await _fileFolderService.SaveFileAsync(file, fileName, "community_images/Threads");
+
+                        if (savedPath == null)
+                            return BadRequest(new { error = "Error al guardar una de las imágenes." });
+
+                        imagePaths.Add(savedPath);
+                    }
+                }
+
+                foreach (var path in imagePaths)
+                {
+                    _context.ThreadImages.Add(new ThreadImage
+                    {
+                        ThreadId = thread.Id,
+                        ImageUrl = path
+                    });
+                }
             }
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Thread actualizado correctamente");
+            return Ok(new { message = "Updateo correcto" });
         }
+
 
 
         [HttpDelete("community/{idCom}/Thread/{idThread}")]
@@ -498,7 +506,7 @@ namespace ComunApi.Controllers
                     _context.Threads.Remove(thread);
                     await _context.SaveChangesAsync();
                     _logger.LogInformation("Thread eliminado");
-                    return Ok("Thread eliminado");
+                    return Ok(new { error = "Thread eliminado" });
                 }
                 else
                 {
@@ -509,7 +517,7 @@ namespace ComunApi.Controllers
             else
             {
                 _logger.LogWarning("No existe este thread");
-                return NotFound("No existe este thread");
+                return NotFound(new { error = "No existe este thread" });
 
             }
 
@@ -533,7 +541,7 @@ namespace ComunApi.Controllers
                 if (existingLike == null)
                 {
                     _logger.LogWarning("El usuario no ha dado like a este hilo");
-                    return BadRequest("No has dado like a este hilo");
+                    return BadRequest(new { error = "No has dado like a este hilo" });
                 }
                 else
                 {
@@ -548,7 +556,7 @@ namespace ComunApi.Controllers
             else
             {
                 _logger.LogWarning("No se encontró el hilo para eliminar el like");
-                return NotFound("No se encuentra el hilo");
+                return NotFound(new { error = "No se encuentra el hilo" });
             }
         }
 
