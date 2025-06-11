@@ -27,4 +27,12 @@ RUN dotnet publish "./ComunApi.csproj" -c $BUILD_CONFIGURATION -o /app/publish /
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+
+RUN mkdir -p /app/community_images \
+    && chown -R $APP_UID:$APP_UID /app/community_images \
+    && chmod -R 777 /app/community_images
+
+USER $APP_UID
+
+ENTRYPOINT ["dotnet", "ComunApi.dll"]
 ENTRYPOINT ["dotnet", "ComunApi.dll"]

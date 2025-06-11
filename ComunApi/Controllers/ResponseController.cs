@@ -238,21 +238,24 @@ namespace ComunApi.Controllers
         {
             int pageSize = 10;
 
-            var totalLikedResponses = await _context.ResponseLikes
+            var query = _context.ResponseLikes
                 .Where(rl => rl.UserId == creatorId)
-                .CountAsync();
+                .Include(rl => rl.Response); 
 
-            var responseLikes = await _context.ResponseLikes
-                .Where(rl => rl.UserId == creatorId)
-                .Include(rl => rl.Response)
+            int totalLikedResponses = await query.CountAsync();
+
+            var responseLikes = await query
                 .OrderBy(rl => rl.Response.Id)
                 .Skip((pageNumber - 1) * pageSize)
                 .Take(pageSize)
                 .Select(rl => new ResponseDetailDTO
                 {
                     Id = rl.Response.Id,
+                    CreatorId = rl.Response.CreatorId,
                     Content = rl.Response.Content,
-                    Likes = rl.Response.CountLikes
+                    Likes = rl.Response.CountLikes,
+                    IsDeleted = rl.Response.IsDeleted,
+                    Responses = rl.Response.CountResponses
                 })
                 .ToListAsync();
 
@@ -274,6 +277,8 @@ namespace ComunApi.Controllers
                 return NotFound(new { error = "No se encontraron respuestas a las que haya dado like." });
             }
         }
+
+
 
 
 

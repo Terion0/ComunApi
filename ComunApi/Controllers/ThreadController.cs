@@ -371,51 +371,24 @@ namespace ComunApi.Controllers
             var thread = await _context.Threads
                 .Include(t => t.Images)
                 .FirstOrDefaultAsync(t => t.Id == ThreadDTO.Id);
-
             long maxSize = 5 * 1024 * 1024;
-
             if (thread == null)
             {
                 _logger.LogWarning("No se encontró el thread");
                 return NotFound(new { error = "No se encuentra el thread" });
             }
-
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
             if (thread.CreatorId != userId)
             {
                 _logger.LogWarning("No eres el creador del thread");
                 return Forbid("No tienes permisos para actualizar este thread");
             }
-
-          
             thread.Title = ThreadDTO.Title;
             thread.Content = ThreadDTO.Content;
             thread.UpdatedAt = DateTime.UtcNow;
-
-            var onServer = thread.Images.ToList();
-            var imagesToKeep = ThreadDTO.ImagesToKeep ?? new List<string>();
-
-            var imagesToDelete = onServer
-                .Where(img => !imagesToKeep.Contains(img.ImageUrl))
-                .ToList();
-
-            foreach (var image in imagesToDelete)
-            {
-                var fullPath = Path.Combine(Directory.GetCurrentDirectory(), image.ImageUrl.TrimStart('/'));
-                if (_fileFolderService.DeleteFile(fullPath))
-                {
-                    _logger.LogInformation($"Imagen eliminada: {image.ImageUrl}");
-                }
-                else
-                {
-                    _logger.LogWarning($"No se pudo eliminar: {image.ImageUrl}");
-                }
-            }
-            _context.ThreadImages.RemoveRange(imagesToDelete);
-
+            List<string> imagePaths = new List<string>();
             if (ThreadDTO.Images != null && ThreadDTO.Images.Count > 0)
             {
-                List<string> imagePaths = new List<string>();
                 string picUID = $"{Guid.NewGuid()}";
 
                 for (int i = 0; i < ThreadDTO.Images.Count; i++)
@@ -440,21 +413,42 @@ namespace ComunApi.Controllers
                         imagePaths.Add(savedPath);
                     }
                 }
+            }
 
-                foreach (var path in imagePaths)
+            var onServer = thread.Images.ToList();
+            var imagesToKeep = ThreadDTO.ImagesToKeep ?? new List<string>();
+            var imagesToDelete = onServer
+                .Where(img => !imagesToKeep.Contains(img.ImageUrl))
+                .ToList();
+
+            foreach (var image in imagesToDelete)
+            {
+                var fullPath = Path.Combine(Directory.GetCurrentDirectory(), image.ImageUrl.TrimStart('/'));
+                if (_fileFolderService.DeleteFile(fullPath))
                 {
-                    _context.ThreadImages.Add(new ThreadImage
-                    {
-                        ThreadId = thread.Id,
-                        ImageUrl = path
-                    });
+                    _logger.LogInformation($"Imagen eliminada: {image.ImageUrl}");
                 }
+                else
+                {
+                    _logger.LogWarning($"No se pudo eliminar: {image.ImageUrl}");
+                }
+            }
+            _context.ThreadImages.RemoveRange(imagesToDelete);
+
+            foreach (var path in imagePaths)
+            {
+                _context.ThreadImages.Add(new ThreadImage
+                {
+                    ThreadId = thread.Id,
+                    ImageUrl = path
+                });
             }
 
             await _context.SaveChangesAsync();
             _logger.LogInformation("Thread actualizado correctamente");
             return Ok(new { message = "Updateo correcto" });
         }
+
 
 
 
